@@ -15,6 +15,7 @@ return {
           "scss",
           "typescriptreact",
           "php",
+          "svelte",
         },
       },
     },

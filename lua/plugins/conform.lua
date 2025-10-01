@@ -100,6 +100,7 @@ return {
     opts.formatters_by_ft.javascript = get_formatters_for_ft("javascript")
     opts.formatters_by_ft.typescript = get_formatters_for_ft("typescript")
     opts.formatters_by_ft.svelte = get_formatters_for_ft("svelte")
+    opts.formatters_by_ft.svx = get_formatters_for_ft("svelte")
     opts.formatters_by_ft.json = get_formatters_for_ft("json")
     opts.formatters_by_ft.css = get_formatters_for_ft("css")
     opts.formatters_by_ft.html = get_formatters_for_ft("html")

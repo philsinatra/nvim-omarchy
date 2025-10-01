@@ -67,6 +67,7 @@ return {
       javascript = get_linters_for_ft("javascript"),
       typescript = get_linters_for_ft("typescript"),
       svelte = get_linters_for_ft("svelte"),
+      svx = get_linters_for_ft("svelte"),
       html = get_linters_for_ft("html"),
       css = get_linters_for_ft("css"),
       php = get_linters_for_ft("php"),
