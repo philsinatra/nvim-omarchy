@@ -1,0 +1,26 @@
+return {
+  "mason-org/mason.nvim",
+  opts = {
+    ensure_installed = {
+      "biome",
+      "css-lsp",
+      "emmet-ls",
+      "eslint-lsp",
+      "eslint_d",
+      "html-lsp",
+      "htmlhint",
+      "intelephense",
+      "lua-language-server",
+      "php-cs-fixer",
+      "phpcs",
+      "phpstan",
+      "prettier",
+      "shfmt",
+      "stylelint",
+      "stylua",
+      "svelte-language-server",
+      "tree-sitter-cli",
+      "typescript-language-server",
+    },
+  },
+}
