@@ -21,6 +21,7 @@ return {
       "svelte-language-server",
       "tree-sitter-cli",
       "typescript-language-server",
+      -- Note: oxlint should be installed separately via npm: npm install -g oxlint
     },
   },
 }

@@ -11,6 +11,18 @@ return {
           return node_bin
         end
       end
+      if bin_name == "oxlint" then
+        -- Check for global oxlint first
+        if vim.fn.executable("oxlint") == 1 then
+          return "oxlint"
+        end
+        -- Then check local node_modules
+        local project_root = vim.fn.getcwd()
+        local node_bin = project_root .. "/node_modules/.bin/" .. bin_name
+        if vim.fn.executable(node_bin) == 1 then
+          return node_bin
+        end
+      end
       local mason_bin = vim.fn.stdpath("data") .. "/mason/bin/" .. bin_name
       if vim.fn.executable(mason_bin) == 1 then
         return mason_bin
@@ -32,11 +44,14 @@ return {
       local linters = {}
       local eslint_bin = find_local_bin("eslint")
       local biome_bin = find_local_bin("biome")
+      local oxlint_bin = find_local_bin("oxlint")
       if ft == "javascript" or ft == "typescript" or ft == "svelte" then
         if vim.fn.executable(eslint_bin) == 1 then
           table.insert(linters, "eslint_d")
         elseif vim.fn.executable(biome_bin) == 1 then
           table.insert(linters, "biome")
+        elseif vim.fn.executable(oxlint_bin) == 1 then
+          table.insert(linters, "oxlint")
         end
       end
       if ft == "php" then
@@ -66,6 +81,8 @@ return {
     lint.linters_by_ft = {
       javascript = get_linters_for_ft("javascript"),
       typescript = get_linters_for_ft("typescript"),
+      javascriptreact = get_linters_for_ft("javascript"),
+      typescriptreact = get_linters_for_ft("typescript"),
       svelte = get_linters_for_ft("svelte"),
       svx = get_linters_for_ft("svelte"),
       html = get_linters_for_ft("html"),
@@ -246,5 +263,49 @@ return {
         end
       end,
     })
+
+    -- Configure oxlint linter
+    lint.linters.oxlint = {
+      cmd = find_local_bin("oxlint"),
+      name = "oxlint",
+      args = {
+        "--format",
+        "json",
+        "--stdin",
+        "--stdin-filename",
+        function()
+          return vim.fn.expand("%:p")
+        end,
+      },
+      stdin = true,
+      stream = "stdout",
+      ignore_exitcode = true,
+      parser = function(output, bufnr)
+        local diagnostics = {}
+        if output == "" then
+          return diagnostics
+        end
+        local ok, decoded = pcall(vim.json.decode, output)
+        if not ok or not decoded then
+          return diagnostics
+        end
+        for _, result in ipairs(decoded) do
+          if result.ruleId and result.message then
+            table.insert(diagnostics, {
+              bufnr = bufnr,
+              lnum = (result.line or 1) - 1,
+              col = (result.column or 1) - 1,
+              end_lnum = (result.endLine or result.line or 1) - 1,
+              end_col = (result.endColumn or result.column or 1),
+              message = result.message,
+              severity = vim.diagnostic.severity[result.severity and result.severity:upper() or "ERROR"] or vim.diagnostic.severity.ERROR,
+              source = "oxlint",
+              code = result.ruleId,
+            })
+          end
+        end
+        return diagnostics
+      end,
+    }
   end,
 }
