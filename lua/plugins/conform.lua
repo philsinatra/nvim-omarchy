@@ -91,9 +91,35 @@ return {
         end
       end
 
-      -- CSS/HTML - prefer prettier if available, otherwise stylelint
+      -- CSS/HTML formatting
       if ft == "css" or ft == "html" then
-        if has_prettier_config and vim.fn.executable(find_local_bin("prettier")) == 1 then
+        -- Check for stylelint config
+        local stylelint_configs = {
+          ".stylelintrc",
+          ".stylelintrc.json",
+          ".stylelintrc.yml",
+          ".stylelintrc.yaml",
+          ".stylelintrc.js",
+          ".stylelintrc.cjs",
+          "stylelint.config.js",
+          "stylelint.config.cjs",
+          "stylelint.config.mjs",
+        }
+        local has_stylelint_config = false
+        for _, config in ipairs(stylelint_configs) do
+          if vim.fn.filereadable(project_root .. "/" .. config) == 1 then
+            has_stylelint_config = true
+            break
+          end
+        end
+
+        if ft == "css" and has_stylelint_config then
+          -- When stylelint config exists, use stylelint only for CSS
+          local stylelint_bin = find_local_bin("stylelint")
+          if vim.fn.executable(stylelint_bin) == 1 then
+            table.insert(formatters, "stylelint")
+          end
+        elseif has_prettier_config and vim.fn.executable(find_local_bin("prettier")) == 1 then
           if ft == "css" then
             table.insert(formatters, "stylelint") -- CSS can use both
           end
