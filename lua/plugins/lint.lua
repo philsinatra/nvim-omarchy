@@ -12,15 +12,18 @@ return {
         end
       end
       if bin_name == "oxlint" then
-        -- Check for global oxlint first
-        if vim.fn.executable("oxlint") == 1 then
-          return "oxlint"
-        end
-        -- Then check local node_modules
+        -- Dead branch: oxlint has no stdin mode, so it is never registered with
+        -- nvim-lint (see the notes further down this file). Kept in sync with
+        -- oxlint.lua's resolution order so it does not mislead if that changes.
+        -- Project-local first: a repo's .oxlintrc.json is only valid for the
+        -- oxlint version that repo pins.
         local project_root = vim.fn.getcwd()
         local node_bin = project_root .. "/node_modules/.bin/" .. bin_name
         if vim.fn.executable(node_bin) == 1 then
           return node_bin
+        end
+        if vim.fn.executable("oxlint") == 1 then
+          return "oxlint"
         end
       end
       local mason_bin = vim.fn.stdpath("data") .. "/mason/bin/" .. bin_name
