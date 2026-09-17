@@ -2,21 +2,21 @@ return {
   "folke/snacks.nvim",
   opts = {
     picker = {
-      -- Global settings for all pickers
+      -- Global settings for all pickers.
+      --
+      -- ignored = true means .gitignore no longer decides what the pickers show;
+      -- `exclude` below is the single source of truth for what stays hidden.
+      -- This is what keeps git-ignored-but-wanted paths (.env, dist) reachable
+      -- while node_modules stays gone, since `exclude` is applied independently
+      -- of gitignore (fd -E / rg -g '!...').
       hidden = true,
-      ignored = false,
+      ignored = true,
       exclude = {
         "node_modules",
-        "dist",
-        "build",
         "target",
         "vendor",
         ".git",
-        "%.lock$",
-      },
-      include = {
-        ".env*",
-        ".htaccess",
+        "*.lock",
       },
       sources = {
         -- Explorer-specific settings
@@ -27,14 +27,12 @@ return {
           },
           exclude = {
             "node_modules",
-            "dist",
-            "build",
             "target",
             "vendor",
             ".git",
           },
           hidden = true,
-          ignored = false,
+          ignored = true,
           follow_file = true,
           tree = true,
           auto_close = false,
@@ -43,33 +41,25 @@ return {
         files = {
           exclude = {
             "node_modules/",
-            "dist/",
-            "build/",
             "target/",
             "vendor/",
             ".git/",
-            "%.lock$",
-          },
-          include = {
-            ".env*",
-            ".htaccess",
+            "*.lock",
           },
           hidden = true,
-          ignored = false,
+          ignored = true,
         },
         -- Grep picker settings
         grep = {
           exclude = {
             "node_modules/",
-            "dist/",
-            "build/",
             "target/",
             "vendor/",
             ".git/",
-            "%.lock$",
+            "*.lock",
           },
           hidden = true,
-          ignored = false,
+          ignored = true,
         },
       },
     },
