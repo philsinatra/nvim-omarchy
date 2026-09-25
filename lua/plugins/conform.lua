@@ -83,6 +83,14 @@ return {
       end
 
       if ft == "php" then
+        -- Format the HTML in PHP templates first (opt-in per project via .jsbeautifyrc)
+        if
+          vim.fn.filereadable(project_root .. "/.jsbeautifyrc") == 1
+          and vim.fn.executable(project_root .. "/node_modules/.bin/html-beautify") == 1
+        then
+          table.insert(formatters, "html_beautify")
+        end
+
         local phpcsfixer_bin = find_local_bin("php-cs-fixer")
         if vim.fn.executable(phpcsfixer_bin) == 1 then
           table.insert(formatters, "php_cs_fixer")
