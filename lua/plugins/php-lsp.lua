@@ -3,8 +3,31 @@ return {
   opts = {
     servers = {
       intelephense = {
-        -- Optional: Add license key if you have one for premium features
-        -- settings = { intelephense = { licenseKey = "your-key" } },
+        settings = {
+          intelephense = {
+            files = {
+              maxSize = 1000000,
+              associations = { "*.php", "*.phtml" },
+              exclude = {
+                "**/vendor/**",
+                "**/node_modules/**",
+                "**/.git/**",
+              },
+            },
+            format = {
+              enable = true,
+            },
+            environment = {
+              includePaths = { "vendor" },
+            },
+            -- Enable completion features
+            completion = {
+              insertUseDeclaration = true,
+              fullyQualifyGlobalConstantsAndFunctions = false,
+            },
+          },
+        },
+        filetypes = { "php" }, -- Explicitly set filetypes
       },
     },
   },

@@ -113,6 +113,7 @@ return {
       args = { "lint", "--stdin-file-path", vim.fn.expand("%:p") },
       stdin = true,
       stream = "stdout",
+      ignore_exitcode = true,
       parser = function(output, bufnr)
         local diagnostics = {}
         if output == "" then

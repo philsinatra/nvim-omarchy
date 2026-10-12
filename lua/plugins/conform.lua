@@ -90,10 +90,19 @@ return {
         then
           table.insert(formatters, "html_beautify")
         end
+        local is_template = formatters[#formatters] == "html_beautify"
 
         local phpcsfixer_bin = find_local_bin("php-cs-fixer")
         if vim.fn.executable(phpcsfixer_bin) == 1 then
+          -- php-cs-fixer keeps the first statement's indent in inline-HTML files and puts the rest
+          -- at column 0, so flatten embedded blocks before it and nest them under their tag after
+          if is_template then
+            table.insert(formatters, "php_block_dedent")
+          end
           table.insert(formatters, "php_cs_fixer")
+          if is_template then
+            table.insert(formatters, "php_block_indent")
+          end
         elseif has_prettier_config and vim.fn.executable(find_local_bin("prettier")) == 1 then
           table.insert(formatters, "prettier") -- Fallback to prettier if configured for PHP
         end
@@ -244,6 +253,79 @@ return {
         return args
       end,
       stdin = false, -- PHP CS Fixer works better with files
+    }
+
+    -- Calls fn(open, close, indent) for each multi-line PHP block inside HTML, i.e. an indented
+    -- `<?php` and a `?>` each alone on their line. Heredocs are skipped since re-indenting
+    -- would change their contents.
+    local function each_php_block(lines, fn)
+      local i = 1
+      while i <= #lines do
+        local indent = lines[i]:match("^(%s+)<%?php%s*$")
+        if indent then
+          local close
+          for j = i + 1, #lines do
+            if lines[j]:match("^%s*%?>%s*$") then
+              close = j
+              break
+            end
+            if lines[j]:find("<%?") or lines[j]:find("?>", 1, true) or lines[j]:find("<<<", 1, true) then
+              break
+            end
+          end
+          if close then
+            fn(i, close, indent)
+            i = close
+          end
+        end
+        i = i + 1
+      end
+    end
+
+    local function indent_width(line)
+      return #line:match("^%s*")
+    end
+
+    -- Shift every non-blank line in (open, close) left by the smallest indent, and the first
+    -- statement fully left so php-cs-fixer doesn't treat its indent as the baseline
+    opts.formatters.php_block_dedent = {
+      format = function(_, _, lines, callback)
+        local out = vim.deepcopy(lines)
+        each_php_block(out, function(open, close)
+          local min, first
+          for k = open + 1, close - 1 do
+            if out[k]:match("%S") then
+              first = first or k
+              min = math.min(min or math.huge, indent_width(out[k]))
+            end
+          end
+          for k = open + 1, close - 1 do
+            if out[k]:match("%S") then
+              out[k] = k == first and vim.trim(out[k]) or out[k]:sub(min + 1)
+            else
+              out[k] = ""
+            end
+          end
+        end)
+        callback(nil, out)
+      end,
+    }
+
+    -- Nest block contents one level under the `<?php` line and align `?>` with it
+    opts.formatters.php_block_indent = {
+      format = function(_, ctx, lines, callback)
+        local out = vim.deepcopy(lines)
+        local step = string.rep(" ", ctx.shiftwidth)
+        each_php_block(out, function(open, close, indent)
+          for k = open + 1, close - 1 do
+            if out[k]:match("%S") then
+              out[k] = indent .. step .. out[k]
+            end
+          end
+          out[close] = indent .. "?>"
+        end)
+        callback(nil, out)
+      end,
     }
 
     -- Oxfmt formatter

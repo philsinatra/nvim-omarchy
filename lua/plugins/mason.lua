@@ -4,7 +4,7 @@ return {
     ensure_installed = {
       "biome",
       "css-lsp",
-      "emmet-ls",
+      "emmet-language-server",
       "eslint-lsp",
       "eslint_d",
       "html-lsp",

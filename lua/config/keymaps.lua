@@ -20,4 +20,6 @@ vim.keymap.set("n", "<leader>co", function()
   vim.cmd("resize 15")
 end, { desc = "Open quickfix at bottom" })
 
-vim.keymap.set("n", "<leader>bo", "<cmd>!xdg-open %<cr>", { desc = "Open in browser" })
+vim.keymap.set("n", "<leader>bo", function()
+  vim.ui.open(vim.fn.expand("%:p"))
+end, { desc = "Open in browser" })

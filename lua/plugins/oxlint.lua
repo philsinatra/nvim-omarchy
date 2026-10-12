@@ -9,7 +9,8 @@ return {
       "typescriptreact",
       "typescript.tsx",
     },
-    bin_path = { "oxlint", "--lsp" }, -- Use oxlint with LSP flag
+    -- No bin_path: the plugin uses `bin_path or find_binary()`, so setting it would
+    -- bypass the project-local resolution in find_binary below.
     run = "onType",
     enable = true,
     config_path = ".oxlintrc.json",

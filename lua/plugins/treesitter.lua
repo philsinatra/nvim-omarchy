@@ -5,7 +5,7 @@ return {
     opts.ensure_installed = opts.ensure_installed or {}
     vim.list_extend(
       opts.ensure_installed,
-      { "html", "css", "javascript", "typescript", "tsx", "json", "svelte", "markdown" }
+      { "html", "css", "javascript", "typescript", "tsx", "json", "php", "phpdoc", "svelte", "markdown" }
     )
     -- Enable highlighting and indentation
     opts.highlight = { enable = true }
