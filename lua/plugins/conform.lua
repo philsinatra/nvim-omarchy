@@ -26,8 +26,20 @@ return {
       return bin_name
     end
 
+    -- Project-local html-beautify first, then one on PATH
+    local function find_html_beautify()
+      local node_bin = vim.fn.getcwd() .. "/node_modules/.bin/html-beautify"
+      return vim.fn.executable(node_bin) == 1 and node_bin or "html-beautify"
+    end
+
+    -- A PHP file is a template when anything but whitespace follows a closing `?>`
+    local function is_php_template(bufnr)
+      local text = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
+      return text:find("%?>%s*%S") ~= nil
+    end
+
     -- Function to detect project formatter preference
-    local function get_formatters_for_ft(ft)
+    local function get_formatters_for_ft(ft, bufnr)
       local formatters = {}
       local project_root = vim.fn.getcwd()
 
@@ -83,23 +95,22 @@ return {
       end
 
       if ft == "php" then
+        local is_template = is_php_template(bufnr or 0)
+
         -- Format the HTML in PHP templates first (opt-in per project via .jsbeautifyrc)
         if
-          vim.fn.filereadable(project_root .. "/.jsbeautifyrc") == 1
-          and vim.fn.executable(project_root .. "/node_modules/.bin/html-beautify") == 1
+          is_template
+          and vim.fn.filereadable(project_root .. "/.jsbeautifyrc") == 1
+          and vim.fn.executable(find_html_beautify()) == 1
         then
           table.insert(formatters, "html_beautify")
         end
-        local is_template = formatters[#formatters] == "html_beautify"
 
         local phpcsfixer_bin = find_local_bin("php-cs-fixer")
         if vim.fn.executable(phpcsfixer_bin) == 1 then
-          -- php-cs-fixer keeps the first statement's indent in inline-HTML files and puts the rest
-          -- at column 0, so flatten embedded blocks before it and nest them under their tag after
-          if is_template then
-            table.insert(formatters, "php_block_dedent")
-          end
-          table.insert(formatters, "php_cs_fixer")
+          -- php-cs-fixer can't indent PHP blocks embedded in HTML, so templates skip its
+          -- statement_indentation and php_block_indent re-indents each block instead
+          table.insert(formatters, is_template and "php_cs_fixer_template" or "php_cs_fixer")
           if is_template then
             table.insert(formatters, "php_block_indent")
           end
@@ -186,8 +197,8 @@ return {
     opts.formatters_by_ft.html = function()
       return get_formatters_for_ft("html")
     end
-    opts.formatters_by_ft.php = function()
-      return get_formatters_for_ft("php")
+    opts.formatters_by_ft.php = function(bufnr)
+      return get_formatters_for_ft("php", bufnr)
     end
     opts.formatters_by_ft.javascriptreact = get_formatters_for_ft("javascript")
     opts.formatters_by_ft.typescriptreact = get_formatters_for_ft("typescript")
@@ -226,42 +237,83 @@ return {
       stdin = true,
     }
 
+    -- Check for config files with multiple possible names
+    local function find_php_cs_fixer_config()
+      local project_root = vim.fn.getcwd()
+      local config_files = { ".php-cs-fixer.php", "_php-cs-fixer.php", ".php-cs-fixer.dist.php" }
+      for _, config_file in ipairs(config_files) do
+        local config_path = project_root .. "/" .. config_file
+        if vim.fn.filereadable(config_path) == 1 then
+          return config_path
+        end
+      end
+    end
+
+    local php_cs_fixer_args = {
+      "fix",
+      "$FILENAME",
+      "--quiet",
+      "--no-interaction",
+      "--allow-risky=yes",
+      "--using-cache=no",
+    }
+
     -- PHP CS Fixer formatter (fixed to work with file-based formatting)
     opts.formatters.php_cs_fixer = {
       command = find_local_bin("php-cs-fixer"),
-      args = function(self, ctx)
-        local args = {
-          "fix",
-          "$FILENAME",
-          "--quiet",
-          "--no-interaction",
-          "--allow-risky=yes",
-          "--using-cache=no",
-        }
-
-        -- Check for config files with multiple possible names
-        local project_root = vim.fn.getcwd()
-        local config_files = { ".php-cs-fixer.php", "_php-cs-fixer.php", ".php-cs-fixer.dist.php" }
-        for _, config_file in ipairs(config_files) do
-          local config_path = project_root .. "/" .. config_file
-          if vim.fn.filereadable(config_path) == 1 then
-            table.insert(args, "--config=" .. config_path)
-            break
-          end
+      args = function()
+        local args = vim.deepcopy(php_cs_fixer_args)
+        local config_path = find_php_cs_fixer_config()
+        if config_path then
+          table.insert(args, "--config=" .. config_path)
         end
-
         return args
       end,
       stdin = false, -- PHP CS Fixer works better with files
     }
 
-    -- Calls fn(open, close, indent) for each multi-line PHP block inside HTML, i.e. an indented
-    -- `<?php` and a `?>` each alone on their line. Heredocs are skipped since re-indenting
-    -- would change their contents.
+    -- php-cs-fixer for PHP templates: the project config with statement_indentation off, since that
+    -- rule indents statements inside inline-HTML blocks from an unpredictable base column
+    opts.formatters.php_cs_fixer_template = {
+      command = find_local_bin("php-cs-fixer"),
+      args = function()
+        local args = vim.deepcopy(php_cs_fixer_args)
+        local config_path = find_php_cs_fixer_config()
+        if not config_path then
+          table.insert(args, '--rules={"@PSR12":true,"statement_indentation":false}')
+          return args
+        end
+        local quoted = "'" .. config_path:gsub("\\", "\\\\"):gsub("'", "\\'") .. "'"
+        local wrapper = vim.fn.stdpath("cache") .. "/php-cs-fixer-template.php"
+        vim.fn.writefile({
+          "<?php",
+          "$config = require " .. quoted .. ";",
+          "return $config->setRules(array_merge($config->getRules(), ['statement_indentation' => false]));",
+        }, wrapper)
+        table.insert(args, "--config=" .. wrapper)
+        return args
+      end,
+      stdin = false,
+    }
+
+    -- html-beautify with the project's .jsbeautifyrc
+    opts.formatters.html_beautify = {
+      command = function()
+        return find_html_beautify()
+      end,
+      args = function()
+        return { "--config", vim.fn.getcwd() .. "/.jsbeautifyrc", "--file", "-" }
+      end,
+      stdin = true,
+    }
+
+    -- Calls fn(open, close, indent) for each multi-line PHP block in a template, i.e. a `<?php`
+    -- and a `?>` each alone on their line. Heredocs are skipped since re-indenting would change
+    -- their contents.
     local function each_php_block(lines, fn)
       local i = 1
       while i <= #lines do
-        local indent = lines[i]:match("^(%s+)<%?php%s*$")
+        local indent = lines[i]:match("^(%s*)<%?php%s*$")
         if indent then
           local close
           for j = i + 1, #lines do
@@ -282,44 +334,42 @@ return {
       end
     end
 
-    local function indent_width(line)
-      return #line:match("^%s*")
+    local php_block_openers = { "if", "elseif", "else", "foreach", "for", "while", "switch" }
+    local php_block_closers = { "elseif", "else", "endif", "endforeach", "endfor", "endwhile", "endswitch" }
+
+    -- Whether a trimmed PHP line closes a level (outdenting itself) and opens one (indenting the
+    -- lines after it). Alternative syntax like `if (...) :` ... `endif;` counts as a level.
+    local function php_line_levels(line)
+      local word = line:match("^%a+")
+      local closes = line:match("^[}%)%]]") or vim.tbl_contains(php_block_closers, word)
+      local opens = line:match("[{%(%[]$") or (line:match(":$") and vim.tbl_contains(php_block_openers, word))
+      return closes, opens
     end
 
-    -- Shift every non-blank line in (open, close) left by the smallest indent, and the first
-    -- statement fully left so php-cs-fixer doesn't treat its indent as the baseline
-    opts.formatters.php_block_dedent = {
-      format = function(_, _, lines, callback)
-        local out = vim.deepcopy(lines)
-        each_php_block(out, function(open, close)
-          local min, first
-          for k = open + 1, close - 1 do
-            if out[k]:match("%S") then
-              first = first or k
-              min = math.min(min or math.huge, indent_width(out[k]))
-            end
-          end
-          for k = open + 1, close - 1 do
-            if out[k]:match("%S") then
-              out[k] = k == first and vim.trim(out[k]) or out[k]:sub(min + 1)
-            else
-              out[k] = ""
-            end
-          end
-        end)
-        callback(nil, out)
-      end,
-    }
-
-    -- Nest block contents one level under the `<?php` line and align `?>` with it
+    -- Re-indent block contents by nesting depth, one level under the `<?php` line (a column-0
+    -- `<?php` keeps its statements at column 0), and align `?>` with the tag
     opts.formatters.php_block_indent = {
       format = function(_, ctx, lines, callback)
         local out = vim.deepcopy(lines)
         local step = string.rep(" ", ctx.shiftwidth)
         each_php_block(out, function(open, close, indent)
+          local base = indent == "" and "" or indent .. step
+          local depth = 0
           for k = open + 1, close - 1 do
-            if out[k]:match("%S") then
-              out[k] = indent .. step .. out[k]
+            local line = vim.trim(out[k])
+            if line == "" then
+              out[k] = ""
+            else
+              local closes, opens = php_line_levels(line)
+              if closes then
+                depth = math.max(depth - 1, 0)
+              end
+              -- Continuation lines of a /* */ or docblock comment sit one space in
+              local pad = line:match("^%*") and " " or ""
+              out[k] = base .. step:rep(depth) .. pad .. line
+              if opens then
+                depth = depth + 1
+              end
             end
           end
           out[close] = indent .. "?>"
